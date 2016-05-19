@@ -1,0 +1,45 @@
+table {
+    border-collapse: collapse;
+}
+table thead tr td.success {
+    border: 1px solid #6c6;
+    background-color: #dfd;
+    padding: 5px 10px;
+}
+table thead tr td.error {
+    border: 1px solid #c66;
+    background-color: #fdd;
+    padding: 5px 10px;
+    color: #f00;
+}
+table tbody tr th,
+table tbody tr td {
+    border: none;
+    padding: 10px;
+}
+table tbody tr td {
+    width: 300px;
+}
+table tbody tr th {
+    text-align: left;
+    vertical-align: top;
+}
+table tbody tr th span {
+    color: #f00;
+}	
+table tbody tr td input,
+table tbody tr td textarea {
+    width: 100%;
+}
+table tbody tr td input[type='checkbox'],
+table tbody tr td input[type='radio'] {
+    width: auto;
+}
+table tfoot tr td {
+    text-align: right;
+}
+
+/* 「ご質問」用の要素は初期状態で非表示に */
+.for-question {
+    display: none;
+}

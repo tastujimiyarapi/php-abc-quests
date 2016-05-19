@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>test</title>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+</head>
+<body>
+<p id="target">ここが変更されます</p>
+
+<script type="text/javascript">
+    function modify() {
+        // 'target' という id の要素を見つけて、その内容を '変更されました！' にする.
+        $('#target').text('変更されました！');
+    }
+
+    // 1 秒後に modify を実行する.
+    setTimeout(modify, 1000);
+</script>
+</body>
+</html>
