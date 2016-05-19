@@ -86,7 +86,7 @@ EOF;
 </head>
 <body>
 <h1>問い合わせフォーム</h1>
-<form action="index.php" method="POST">
+<form id="contact-form" action="index.php" method="POST">
 <table>
     <thead>
 <?php foreach ($messages as $message){ ?>

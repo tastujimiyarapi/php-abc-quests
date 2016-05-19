@@ -1,16 +1,23 @@
 $(function () {
+	//送信ボタンイベント
+	$('#contact-form').on('submit', function(){
+		return confirm('送信しますか？');
+	});
+	
 	//ラジオボタンイベント
-	$('input[class=yRadio]').change( function(){
-		if ($('input[class=yRadio]:checked').val() == 0) {
-			//ご意見内容の場合
-			$('.for-question').hide();
-			$('.for-opinion').show();
-		}
-		else {
-			//ご質問内容の内容
-			$('.for-opinion').hide();
-			$('.for-question').show();
-		}
+	$('#contact-form input[class=yRadio]').on('change', function(){
+		$('#contact-form').find('.for-question, .for-opinion').toggle();
+		
+//		if ($('input[class=yRadio]:checked').val() == 0) {
+//			//ご意見内容の場合
+//			$('.for-question').hide();
+//			$('.for-opinion').show();
+//		}
+//		else {
+//			//ご質問内容の内容
+//			$('.for-opinion').hide();
+//			$('.for-question').show();
+//		}
 	});
 });
 
