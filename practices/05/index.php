@@ -1,8 +1,54 @@
 <?php
+
 // 設定ファイルを読み込み.
 $settings = require __DIR__ . '/../secret-settings.php';
+
 //セッションのスタート
 session_start();
+
+// Create connection
+$db = new mysqli(
+	$settings['dbconnect']['servername'],
+	$settings['dbconnect']['username'],
+	$settings['dbconnect']['password'],
+	$settings['dbconnect']['database'],
+	$settings['dbconnect']['dbport']
+	);
+
+// Check connection
+if ($db->connect_error) {
+	//echo "Connection failed (".$db->connect_error.")";
+} else {
+	//echo "Connected successfully (".$db->host_info.")";
+}
+
+//SQL文
+//SELECT
+$sql_select = "SELECT * FROM inputform;";
+//UPDATE
+$sql_update = "UPDATE inputform SET name = '山田　隆' WHERE id = 1;";
+//INSERT
+$sql_insert = "INSERT INTO inputform (name, email, tel, content) VALUES ('吉田孝雄', 'w@w.com', '090-111', 'テストテストテスト');";
+
+//select実行
+if ($result = $db->query($sql_select)) {
+    // 連想配列を取得
+    while ($data = $result->fetch_assoc()) {
+		echo '<p>' 	. $data['id']    . ':' . $data['name'] . ':'
+					. $data['email'] . ':' . $data['tel']  . ':' 
+					. $data['content'] ."</p>\n";
+    }
+    
+    // 結果セットを閉じる
+    $result->close();
+}
+
+
+//update実行
+$db->query($sql_update);
+
+//insert実行
+$db->query($sql_insert);
 
 $messages = array();
 
@@ -98,6 +144,14 @@ EOF;
     <title>問い合わせフォーム</title>
 </head>
 <body>
+	<nav class="navbar navbar-default navbar-static-top">
+    <div class="container">
+        <div class="navbar-header">
+            <a class="navbar-brand" href=".">Sample Web Site</a>
+        </div>
+    </div>
+    </nav>
+	
    <div id="page">
     <div class="container">
       <h1>問い合わせフォーム</h1>

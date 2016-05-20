@@ -1,0 +1,8 @@
+CREATE TABLE testdb.inputform(
+    	id      int AUTO_INCREMENT, 
+    	name    varchar(20),
+    	email   varchar(20),
+    	tel     varchar(20),
+    	content varchar(200),
+	INDEX(id)
+    );
