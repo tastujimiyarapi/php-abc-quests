@@ -1,8 +1,17 @@
 <?php
+//セッションのスタート
+session_start();
+
 $err_msg =array(
 	1 => "検索条件を入力してください。",
 	2 => "検索対象が存在しませんでした。",
 	);
+
+//GETから検索条件を取得
+$name  = isset($_GET['name'])? trim($_GET['name']) : '';
+$tel   = isset($_GET['tel'] )? trim($_GET['tel'])  : '';
+$error = isset($_GET['error'] )? trim($_GET['error'])  : 0;
+
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -36,7 +45,7 @@ $err_msg =array(
         	<h1>検索</h1>
         	<div class="row">
         	    <div class="col-sm-9">
-<?php if(isset($_GET['error'])){ ?>
+<?php if($error){ ?>
         <div class="alert alert-danger" role="alert"><?php echo $err_msg[$_GET['error']]; ?></div>
 <?php } ?>
     	   			<form  action="list.php" method="GET" class="form-horizontal">
@@ -44,23 +53,23 @@ $err_msg =array(
             	       <div class="form-group">
             	           <label for="input-name" class="col-sm-2 control-label">お名前</label>
             	           <div class="col-sm-10">
-            	               <input name="name" type="text" class="form-control" value="" id="input-name" placeholder="例）山田 太郎">
+            	               <input name="name" type="text" class="form-control" value="<?php echo h($name) ?>" id="input-name" placeholder="例）山田 太郎">
             	           </div>
             	       </div>
             	       
             	       <div class="form-group">
             	           <label for="input-name" class="col-sm-2 control-label">電話番号</label>
             	           <div class="col-sm-10">
-            	               <input name="tel" type="text" class="form-control" value="" id="input-name" placeholder="例）090-1234-5678">
+            	               <input name="tel" type="text" class="form-control" value="<?php echo h($tel) ?>" id="input-name" placeholder="例）090-1234-5678">
             	           </div>    	           
             	       </div>
             	       
             	       <div class="form-group">
-                          <div class="col-sm-offset-2 col-sm-10">
-                      	    <input type="hidden" name="csrf_key" value="">
-                            <button type="submit" class="btn btn-primary">検索</button>
-                		    <button type="reset" class="btn btn-default">リセット</button>
-                		  </div>
+            	       	   <div class="col-sm-offset-2 col-sm-10">
+            	       	   		<input type="hidden" name="csrf_key" value="<?=generateCsrfKey(); ?>">
+                            	<button type="submit" class="btn btn-primary">検索</button>
+                		    	<button type="reset" class="btn btn-default">リセット</button>
+                		   </div>
                 	   </div>
         	       </form>
         	   </div>
@@ -69,3 +78,16 @@ $err_msg =array(
     </div><!-- /page -->
 </body>
 </html>
+<?php
+//XSS対策
+function h($str)
+{
+    return htmlspecialchars($str, ENT_QUOTES);
+}
+
+//トークンの生成
+function generateCsrfKey()
+{
+    return $_SESSION['csrf_key'] = sha1(uniqid(mt_rand(), true));
+}
+?>

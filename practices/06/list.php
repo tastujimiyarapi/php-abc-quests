@@ -1,7 +1,15 @@
 <?php
-
 // 設定ファイルを読み込み.
 $settings = require __DIR__ . '/../secret-settings.php';
+
+//セッションのスタート
+session_start();
+
+//CSRF対策
+if (!isset($_GET['csrf_key']) || !checkCsrfKey($_GET['csrf_key'])) {
+	echo '不正なアクセスです';
+    exit;
+}
 
 //GETから検索条件を取得
 $name = isset($_GET['name'])? trim($_GET['name']) : '';
@@ -9,7 +17,9 @@ $tel  = isset($_GET['tel'] )? trim($_GET['tel'])  : '';
 
 //入力されていない。場合は、検索画面にリダイレクト
 if(empty($name) && empty($tel)){
-	header('location: search.php?error=1');
+	$header = 'location: search.php?';
+	$header.= 'error=1';
+	header($header);
 	exit();
 }
 
@@ -31,12 +41,12 @@ if(empty($name) && empty($tel)){
     
     $sql_select .= implode(' AND ',$where);
     
-    echo $sql_select;
+    //echo $sql_select;
     try{
         
         if ($stmt = $dbh->prepare($sql_select)) {
-        	if(isset($name) && !empty($name)){$stmt->bindParam(':name', $name, PDO::PARAM_STR);}
-        	if(isset($tel) && !empty($tel)){ $stmt->bindParam(':tel', $tel, PDO::PARAM_STR);}
+        	if(isset($name) && !empty($name)){$stmt->bindParam(':name', h($name), PDO::PARAM_STR);}
+        	if(isset($tel) && !empty($tel)){ $stmt->bindParam(':tel', h($tel), PDO::PARAM_STR);}
         }
         
         $stmt->execute();
@@ -50,7 +60,11 @@ if(empty($name) && empty($tel)){
     
     //検索結果が0件の場合は、エラーで検索画面へ
     if($stmt->rowCount() < 1){
-    	header('location: search.php?error=2');
+    	$header ='location: search.php?';
+    	$header .='&name='.$_GET['name'];
+    	$header .='&tel='.$_GET['tel'];
+    	$header .='&error=2';
+    	header($header);
     	exit();
     }
 
@@ -101,12 +115,12 @@ if(empty($name) && empty($tel)){
                         <tbody>
 <?php while($result = $stmt->fetch(PDO::FETCH_ASSOC)){ ?>
                             <tr>
-                                <td><?php print(($result['id'])); ?></td>
-                                <td><?php print($result['flag'] == 0 ? "ご意見":"ご質問"); ?></td>
-                                <td><?php print($result['name']); ?></td>
-                                <td><?php print($result['email']); ?></td>
-                                <td><?php print($result['tel']); ?></td>
-                                <td><?php print($result['content']); ?></td>
+                                <td><?php print(h(($result['id']))); ?></td>
+                                <td><?php print(h($result['flag'] == 0 ? "ご意見":"ご質問")); ?></td>
+                                <td><?php print(h($result['name'])); ?></td>
+                                <td><?php print(h($result['email'])); ?></td>
+                                <td><?php print(h($result['tel'])); ?></td>
+                                <td><?php print(h($result['content'])); ?></td>
                             </tr>
 <?php } ?> 
                         </tbody>
@@ -117,3 +131,18 @@ if(empty($name) && empty($tel)){
     </div><!-- /page -->
 </body>
 </html>
+<?php
+//XSS対策
+function h($str)
+{
+    return htmlspecialchars($str, ENT_QUOTES);
+}
+//CSRFの対策
+function checkCsrfKey($key)
+{
+    if (!isset($key) || !isset($_SESSION['csrf_key']) || $_SESSION['csrf_key'] !== $key) {
+        return false;
+    }
+    return true;
+}
+?>
