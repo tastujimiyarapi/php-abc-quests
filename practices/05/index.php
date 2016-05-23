@@ -1,56 +1,12 @@
 <?php
-
 // 設定ファイルを読み込み.
 $settings = require __DIR__ . '/../secret-settings.php';
 
 //セッションのスタート
 session_start();
 
-// Create connection
-$db = new mysqli(
-	$settings['dbconnect']['servername'],
-	$settings['dbconnect']['username'],
-	$settings['dbconnect']['password'],
-	$settings['dbconnect']['database'],
-	$settings['dbconnect']['dbport']
-	);
-
-// Check connection
-if ($db->connect_error) {
-	//echo "Connection failed (".$db->connect_error.")";
-} else {
-	//echo "Connected successfully (".$db->host_info.")";
-}
-
-//SQL文
-//SELECT
-$sql_select = "SELECT * FROM inputform;";
-//UPDATE
-$sql_update = "UPDATE inputform SET name = '山田　隆' WHERE id = 1;";
-//INSERT
-$sql_insert = "INSERT INTO inputform (name, email, tel, content) VALUES ('吉田孝雄', 'w@w.com', '090-111', 'テストテストテスト');";
-
-//select実行
-if ($result = $db->query($sql_select)) {
-    // 連想配列を取得
-    while ($data = $result->fetch_assoc()) {
-		echo '<p>' 	. $data['id']    . ':' . $data['name'] . ':'
-					. $data['email'] . ':' . $data['tel']  . ':' 
-					. $data['content'] ."</p>\n";
-    }
-    
-    // 結果セットを閉じる
-    $result->close();
-}
-
-
-//update実行
-$db->query($sql_update);
-
-//insert実行
-$db->query($sql_insert);
-
 $messages = array();
+$css_ms = 0;
 
 switch(strtolower($_SERVER["REQUEST_METHOD"])){
     case 'get':
@@ -58,6 +14,7 @@ switch(strtolower($_SERVER["REQUEST_METHOD"])){
         break;
     case 'post':
     	$isGet = 0;
+    
         //CSRF対策
         if (!isset($_POST['csrf_key']) || !checkCsrfKey($_POST['csrf_key'])) {
             echo '不正なアクセスです';
@@ -65,60 +22,22 @@ switch(strtolower($_SERVER["REQUEST_METHOD"])){
         }
         
         //項目チェック
-        validate($_POST, $messages);
-
-        if(!isset($messages) || count($messages) > 0){
-        	//エラーメッセージがある場合
-            $css_ms = true;
-        } else {
-            //ここでメール送信処理を行う。
-            mb_language('Japanese');
-            mb_internal_encoding('UTF-8');
-            
-            //質問、ご意見内容の切替
-            $cont = getContentsName();
-            //本文作成
-            $mailtmp = <<< EOF
-
-------------------------------------------------------------
-お名前：{$_POST['name']}
-------------------------------------------------------------
-メールアドレス：{$_POST['email']}
-------------------------------------------------------------
-お電話番号：{$_POST['tel']}
-------------------------------------------------------------
-{$cont}：
-{$_POST['contents']}
-------------------------------------------------------------
-
-EOF;
-			//Webサイト管理者宛て
-			$mailtx1 = <<< EOF
-以下のお客様からお問い合わせがありました。
-{$mailtmp}
-EOF;
-			//ユーザー宛て
-			$mailtx2 = <<< EOF
-以下の内容でお問い合わせを受け付けました。
-担当者より折り返しご連絡を差し上げますので、今しばらくお待ちください。
-{$mailtmp}
-EOF;
-
-			//メール送信処理
-            if((mb_send_mail($settings['email'], h('お問い合わせがありました'), $mailtx1, 'From: ' . mb_encode_mimeheader('テスト') . ' <no-reply@example.com>'))
-            		&& (mb_send_mail($_POST['email'], h('お問い合わせがありがとうございました'), $mailtx2, 'From: ' . mb_encode_mimeheader('テスト') . ' <no-reply@example.com>'))){
-                $css_ms = false;
-                //送信しましたのメッセージを表示する。
-                $messages[] = "メールの送信が完了しました。";
-                $_POST = NULL;
-            } else {
-                //送信に失敗した場合。
-                $css_ms = true;
-                $messages[] = "メールの送信に失敗しました。";
-            }
+        validate();
+        
+        //メール送信処理
+        sendMail();
+        
+        //メール送信できたら、データベース登録
+        if(!$css_ms){
+        	//テーブルにインサート
+        	insertData();
+        	
+        	//メール送信、データ登録できたら、入力内容は表示しない。
+        	$_POST=NULL;
         }
         
         break;
+        
     default:
         echo 'こんなエラー起こるのか？';
 }
@@ -211,24 +130,141 @@ EOF;
 </html>
 <?php
 
-//入力項目のチェックを行う。
-function validate($post, &$messages) {
-    //必須チェック(名前、アドレス、電話番号、質問内容)
-    hissuCheck($post['name'],$messages,"お名前");
-    hissuCheck($post['email'],$messages,"メールアドレス");
-    hissuCheck($post['contents'],$messages,getContentsName());
-    
-    //メールアドレスの内容チェック
-    is_mail($post['email'], $messages);
+
+//Webサイト管理者宛てメール本文作成
+function getMailtxt1($cont){
+	$mail  = "以下のお客様からお問い合わせがありました。\n\n";
+	$mail .= getMailHonbun($cont);
+	return $mail;
 }
 
-//質問内容、ご意見内容により表示切替
+//ユーザー宛てメール本文作成
+function getMailtxt2($cont){
+	$mail  = "以下の内容でお問い合わせを受け付けました。\n";
+	$mail .= "担当者より折り返しご連絡を差し上げますので、今しばらくお待ちください。\n\n";
+	$mail .= getMailHonbun($cont);
+	return $mail;
+}
+
+//基本メール文作成
+function getMailHonbun($cont){
+	
+	$mail = <<< EOF
+		
+------------------------------------------------------------
+お名前：{$_POST['name']}
+------------------------------------------------------------
+メールアドレス：{$_POST['email']}
+------------------------------------------------------------
+お電話番号：{$_POST['tel']}
+------------------------------------------------------------
+{$cont}：
+{$_POST['contents']}
+------------------------------------------------------------
+
+EOF;
+	
+	return $mail;
+}
+
+//メール送信処理を行う。
+function sendMail(){
+	
+	global $css_ms;
+	global $messages;
+	
+        if(!$css_ms) {
+        	//-----エラーメッセージがない場合-----------------------
+        	
+            //ここでメール送信処理を行う。
+            mb_language('Japanese');
+            mb_internal_encoding('UTF-8');
+            
+			//メール送信処理
+            if((mb_send_mail($settings['email'], h('お問い合わせがありました'), getMailtxt1(getContentsName()), 'From: ' . mb_encode_mimeheader('テスト') . ' <no-reply@example.com>'))
+            		&& (mb_send_mail($_POST['email'], h('お問い合わせがありがとうございました'), getMailtxt2(getContentsName()), 'From: ' . mb_encode_mimeheader('テスト') . ' <no-reply@example.com>'))){
+                $css_ms = false;
+                //送信しましたのメッセージを表示する。
+                $messages[] = "メールの送信が完了しました。";
+            } else {
+                //送信に失敗した場合。
+                $css_ms = true;
+                $messages[] = "メールの送信に失敗しました。";
+            }
+        }
+}
+
+//入力項目をテーブルにインサートする。				
+function insertData(){
+	
+	$settings = require __DIR__ . '/../secret-settings.php';
+	
+	try{
+        // Create connection
+        $dbh = new PDO($settings['dbh'], $settings['username'], $settings['password']);
+    }catch(PODException $e){
+        die('Connect Error:' . $e->getCode());
+    }
+    
+    $dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $dbh->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+    
+    try{
+        $sql_insert  = "INSERT INTO inputform (flag, name, email, tel, content) ";
+        $sql_insert .= "VALUES (:flag, :name, :email, :tel, :content)";
+        
+        if ($stmt = $dbh->prepare($sql_insert)) {
+
+        	$stmt->bindParam(':flag', $_POST['c'], PDO::PARAM_INT);
+        	$stmt->bindParam(':name', $_POST['name'], PDO::PARAM_STR);
+        	$stmt->bindParam(':email', $_POST['email'], PDO::PARAM_STR);
+        	$stmt->bindParam(':tel', $_POST['tel'], PDO::PARAM_STR);
+        	$stmt->bindParam(':content', $_POST['contents'], PDO::PARAM_STR);
+        	
+        	$stmt->execute();
+        }
+        
+    } catch(Exception $e){
+        echo "実行できない。".$e->getCode();
+    }
+    
+    //dbクローズ
+    $dbh = NULL;
+}
+
 function getContentsName(){
-	return ($_POST['c'] == 0)? "ご意見内容":"ご質問内容";
+	if($_POST['c'] == 0){
+    	$c = "ご意見内容";
+    }else{
+    	$c = "ご質問内容";
+    }
+    return $c;
+}
+
+//入力項目のチェックを行う。(return::true:エラーfalse:エラーなし)
+function validate() {
+	
+	global $css_ms;
+	global $messages;
+	
+    //必須チェック(名前、アドレス、電話番号、質問内容)
+    hissuCheck($_POST['name'],$messages,"お名前");
+    hissuCheck($_POST['email'],$messages,"メールアドレス");
+    hissuCheck($_POST['contents'],$messages,getContentsName());
+    
+    //メールアドレスの内容チェック
+    is_mail($messages);
+    
+    if(!isset($messages) || count($messages) > 0){
+    	$css_ms = true;
+    } else {
+    	$css_ms = false;
+    }
 }
 //メールアドレス妥当性チェック
-function is_mail($email, &$messages){
-    if (trim($email) !== '' && !preg_match("/^([a-zA-Z0-9])+([a-zA-Z0-9\._-])*@([a-zA-Z0-9_-])+([a-zA-Z0-9\._-]+)+$/", trim($email))) {
+function is_mail(&$messages){
+    if(trim($_POST['email']) !== '' && 
+    	!preg_match("/^([a-zA-Z0-9])+([a-zA-Z0-9\._-])*@([a-zA-Z0-9_-])+([a-zA-Z0-9\._-]+)+$/", trim($_POST['email']))) {
         $messages[] = "不正なメールアドレスです。";
     }
 }
