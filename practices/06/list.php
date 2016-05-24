@@ -1,4 +1,9 @@
 <?php
+
+include 'include.php';
+
+define(MAX_LIMIT,10);
+
 // 設定ファイルを読み込み.
 $settings = require __DIR__ . '/../secret-settings.php';
 
@@ -6,68 +11,100 @@ $settings = require __DIR__ . '/../secret-settings.php';
 session_start();
 
 //CSRF対策
-if (!isset($_GET['csrf_key']) || !checkCsrfKey($_GET['csrf_key'])) {
-	echo '不正なアクセスです';
-    exit;
-}
+checkCsrfKey($_GET['csrf_key']);
 
-//GETから検索条件を取得
-$name = isset($_GET['name'])? trim($_GET['name']) : '';
-$tel  = isset($_GET['tel'] )? trim($_GET['tel'])  : '';
+//検索条件をセッションに格納
+if(!isset($_SESSION['search'])){
+    //セッションにセットされていない場合は、セット
+    $_SESSION['search'] = array(
+        'name'  => isset($_GET['name'] )? trim($_GET['name'])  : '',
+        'tel'   => isset($_GET['tel'] )? trim($_GET['tel'])  : '',
+        'error' => 0,
+    );
+}
+//GETから取得
+$page = isset($_GET['page'])? $_GET['page'] : 1;
+
+$name = $_SESSION['search']['name'];
+$tel  = $_SESSION['search']['tel'];
 
 //入力されていない。場合は、検索画面にリダイレクト
 if(empty($name) && empty($tel)){
-	$header = 'location: search.php?';
-	$header.= 'error=1';
-	header($header);
+	header('location: search.php?');
+	$_SESSION['search']['error'] = 1;
 	exit();
 }
 
-	try{
-        // Create connection
-        $dbh = new PDO($settings['dbh'], $settings['username'], $settings['password']);
-    }catch(PODException $e){
-        die('Connect Error:' . $e->getCode());
-    }
-    
-    $dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $dbh->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-    
-    //セレクト文の作成
-    $sql_select  = "SELECT * FROM inputform WHERE ";
-    
-    if(isset($name) && !empty($name)){ $where[] = 'name=:name';}
-    if(isset($tel) && !empty($tel)){ $where[] = 'tel=:tel';}
-    
-    $sql_select .= implode(' AND ',$where);
-    
-    //echo $sql_select;
-    try{
-        
-        if ($stmt = $dbh->prepare($sql_select)) {
-        	if(isset($name) && !empty($name)){$stmt->bindParam(':name', h($name), PDO::PARAM_STR);}
-        	if(isset($tel) && !empty($tel)){ $stmt->bindParam(':tel', h($tel), PDO::PARAM_STR);}
-        }
-        
-        $stmt->execute();
-        
-    } catch(Exception $e){
-        echo "実行できない。".$e->getCode();
-    }
-    
-    //dbクローズ
-    $dbh = NULL;
-    
-    //検索結果が0件の場合は、エラーで検索画面へ
-    if($stmt->rowCount() < 1){
-    	$header ='location: search.php?';
-    	$header .='&name='.$_GET['name'];
-    	$header .='&tel='.$_GET['tel'];
-    	$header .='&error=2';
-    	header($header);
-    	exit();
-    }
+try{
+    // Create connection
+    $dbh = new PDO($settings['dbh'], $settings['username'], $settings['password']);
+}catch(PODException $e){
+    die('Connect Error:' . $e->getCode());
+}
 
+$dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dbh->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+
+//検索条件を作成
+if(isset($name) && !empty($name)){ $where[] = 'name=:name';}
+if(isset($tel) && !empty($tel)){ $where[] = 'tel=:tel';}
+
+//件数の取得----------------------------------------------------------
+$sql_count  = "SELECT COUNT(*) FROM inputform WHERE ";
+$sql_count .= implode(' AND ',$where);
+
+try{
+
+    if ($stmt = $dbh->prepare($sql_count)) {
+    	if( isset($name) && !empty($name)){ $stmt->bindParam(':name', h($name), PDO::PARAM_STR);}
+        if( isset($tel)  && !empty($tel)){ $stmt->bindParam(':tel', h($tel), PDO::PARAM_STR);}
+    }
+    
+    $stmt->execute();
+        
+} catch(Exception $e){
+    echo "件数取得が実行できない。：".$e->getCode();
+    exit();
+}
+
+$cnt = $stmt->fetchColumn();
+
+//検索結果が0件の場合は、エラーで検索画面へ
+if($cnt < 1){
+	header('location: search.php');
+	$_SESSION['search']['error'] = 2;
+	exit();
+}
+
+$stmt = NULL;
+
+//データの取得-------------------------------------------------------
+$sql_select  = "SELECT * FROM inputform WHERE ";
+$sql_select .= implode(' AND ',$where);
+$sql_select .= " ORDER BY id LIMIT " . MAX_LIMIT . " OFFSET " . MAX_LIMIT*($page - 1);
+    
+try{
+
+    if ($stmt = $dbh->prepare($sql_select)) {
+    	if( isset($name) && !empty($name) ){ $stmt->bindParam(':name', h($name), PDO::PARAM_STR);}
+        if( isset($tel)  && !empty($tel) ){ $stmt->bindParam(':tel', h($tel), PDO::PARAM_STR);}
+    }
+    
+    $stmt->execute();
+        
+} catch(Exception $e){
+    echo "データ取得が実行できない。：".$e->getCode();
+    exit();
+}
+
+//DBクローズ
+$dbh = NULL;
+
+//トークンの生成
+$csrfKey = isset($_SESSION['csrf_key'])? $_SESSION['csrf_key'] : generateCsrfKey();
+
+//ページネーションの設定
+setPageNation($cnt,MAX_LIMIT,$page,$csrfKey);
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -83,24 +120,23 @@ if(empty($name) && empty($tel)){
     <![endif]-->
     
 	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
-	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
-	<script type="text/javascript" src="script.js"></script>
     <title>入力データ一覧</title>
 </head>
 <body>
 	<nav class="navbar navbar-default navbar-static-top">
     	<div class="container">
     		<div class="navbar-header">
-    			<a class="navbar-brand" href=".">Sample Web Site</a>
+    			<a class="navbar-brand" href="list.php?page=1&csrf_key=<?php echo $csrfKey?>">入力データ一覧</a>
     		</div>
     	</div>
     </nav>
-    
-    <div id="page">	
+    	
         <div class="container">
-        	<h1>入力データ一覧</h1>
         	<div class="row">
-        	    <div class="col-sm-9">
+				<!-- pagenation -->
+<?php include 'pagenation.php'; ?>
+				<!-- pagenation -->
+        		<div class="col-sm-12">
         	        <table class="table  table-striped">
                         <thead>
                             <tr>
@@ -115,34 +151,21 @@ if(empty($name) && empty($tel)){
                         <tbody>
 <?php while($result = $stmt->fetch(PDO::FETCH_ASSOC)){ ?>
                             <tr>
-                                <td><?php print(h(($result['id']))); ?></td>
+                                <td><?php print(h(sprintf('%05d', $result['id']))); ?></td>
                                 <td><?php print(h($result['flag'] == 0 ? "ご意見":"ご質問")); ?></td>
                                 <td><?php print(h($result['name'])); ?></td>
                                 <td><?php print(h($result['email'])); ?></td>
                                 <td><?php print(h($result['tel'])); ?></td>
-                                <td><?php print(h($result['content'])); ?></td>
+                                <td><?php print(nl2br((h($result['content'])))); ?></td>
                             </tr>
 <?php } ?> 
                         </tbody>
                     </table>
-        	   </div>
+				</div>
+				<!-- pagenation -->
+<?php include 'pagenation.php'; ?>
+				<!-- pagenation -->
         	</div>
         </div><!-- /container -->
-    </div><!-- /page -->
 </body>
 </html>
-<?php
-//XSS対策
-function h($str)
-{
-    return htmlspecialchars($str, ENT_QUOTES);
-}
-//CSRFの対策
-function checkCsrfKey($key)
-{
-    if (!isset($key) || !isset($_SESSION['csrf_key']) || $_SESSION['csrf_key'] !== $key) {
-        return false;
-    }
-    return true;
-}
-?>

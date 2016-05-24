@@ -1,16 +1,29 @@
 <?php
+
+include 'include.php';
+
 //セッションのスタート
 session_start();
 
 $err_msg =array(
+    0 => "エラー",
 	1 => "検索条件を入力してください。",
 	2 => "検索対象が存在しませんでした。",
 	);
 
-//GETから検索条件を取得
-$name  = isset($_GET['name'])? trim($_GET['name']) : '';
-$tel   = isset($_GET['tel'] )? trim($_GET['tel'])  : '';
-$error = isset($_GET['error'] )? trim($_GET['error'])  : 0;
+//検索条件をセッションから取得
+if(isset($_SESSION['search'])){
+    $name = isset($_SESSION['search']['name']) ? $_SESSION['search']['name'] : '';
+    $tel  = isset($_SESSION['search']['tel']) ? $_SESSION['search']['tel'] : '';
+    $error  = isset($_SESSION['search']['error']) ? $_SESSION['search']['error'] : 0; 
+    
+    //セッションを削除
+    unset($_SESSION['search']);
+} else{
+    $name = '';
+    $tel = '';
+    $error = 0;
+}
 
 ?>
 <!DOCTYPE html>
@@ -27,67 +40,54 @@ $error = isset($_GET['error'] )? trim($_GET['error'])  : 0;
     <![endif]-->
     
 	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
-	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
-	<script type="text/javascript" src="script.js"></script>
     <title>検索画面</title>
 </head>
 <body>
 	<nav class="navbar navbar-default navbar-static-top">
     	<div class="container">
     		<div class="navbar-header">
-    			<a class="navbar-brand" href=".">Sample Web Site</a>
+    			<a class="navbar-brand" href="search.php">検索</a>
     		</div>
     	</div>
     </nav>
     
-    <div id="page">	
+    	
         <div class="container">
-        	<h1>検索</h1>
-        	<div class="row">
-        	    <div class="col-sm-9">
+            <div class="row">
+                <div class="col-sm-8 col-sm-offset-2">
 <?php if($error){ ?>
-        <div class="alert alert-danger" role="alert"><?php echo $err_msg[$_GET['error']]; ?></div>
+                    <div class="alert alert-danger" role="alert"><?php echo $err_msg[$error]; ?></div>
 <?php } ?>
-    	   			<form  action="list.php" method="GET" class="form-horizontal">
-            	       
-            	       <div class="form-group">
-            	           <label for="input-name" class="col-sm-2 control-label">お名前</label>
-            	           <div class="col-sm-10">
-            	               <input name="name" type="text" class="form-control" value="<?php echo h($name) ?>" id="input-name" placeholder="例）山田 太郎">
-            	           </div>
-            	       </div>
-            	       
-            	       <div class="form-group">
-            	           <label for="input-name" class="col-sm-2 control-label">電話番号</label>
-            	           <div class="col-sm-10">
-            	               <input name="tel" type="text" class="form-control" value="<?php echo h($tel) ?>" id="input-name" placeholder="例）090-1234-5678">
-            	           </div>    	           
-            	       </div>
-            	       
-            	       <div class="form-group">
-            	       	   <div class="col-sm-offset-2 col-sm-10">
-            	       	   		<input type="hidden" name="csrf_key" value="<?=generateCsrfKey(); ?>">
-                            	<button type="submit" class="btn btn-primary">検索</button>
-                		    	<button type="reset" class="btn btn-default">リセット</button>
-                		   </div>
-                	   </div>
-        	       </form>
-        	   </div>
+        	   			<form  action="list.php" method="GET" class="form-horizontal">
+                	       
+                	       <div class="form-group">
+                	           <label for="input-name" class="col-sm-2 control-label">お名前</label>
+                	           <div class="col-sm-10">
+                	               <input name="name" type="text" class="form-control" value="<?php echo h($name) ?>" id="input-name" placeholder="例）山田 太郎">
+                	           </div>
+                	       </div>
+                	       
+                	       <div class="form-group">
+                	           <label for="input-name" class="col-sm-2 control-label">電話番号</label>
+                	           <div class="col-sm-10">
+                	               <input name="tel" type="text" class="form-control" value="<?php echo h($tel) ?>" id="input-name" placeholder="例）090-1234-5678">
+                	           </div>    	           
+                	       </div>
+                	       
+                	       <div class="form-group">
+                	           <div class="text-right">
+                    	       	   <div class="col-sm-3 col-sm-offset-9">
+                    	       	       <input type="hidden" name="page" value="1">
+                    	       	   		<input type="hidden" name="csrf_key" value="<?=generateCsrfKey(); ?>">
+                                    	<button type="submit" class="btn btn-primary">検索</button>
+                        		    	<button type="reset" class="btn btn-default">リセット</button>
+                        		   </div>
+                    		   <div class="text-center">
+                    	   </div>
+            	       </form>
+            	   </div>
+                </div>
         	</div>
         </div><!-- /container -->
-    </div><!-- /page -->
 </body>
 </html>
-<?php
-//XSS対策
-function h($str)
-{
-    return htmlspecialchars($str, ENT_QUOTES);
-}
-
-//トークンの生成
-function generateCsrfKey()
-{
-    return $_SESSION['csrf_key'] = sha1(uniqid(mt_rand(), true));
-}
-?>
